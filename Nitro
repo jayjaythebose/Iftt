@@ -1,0 +1,87 @@
+# Created by Mr-Proxy-Source on github.
+# If you want to avoid ratelimits use proxies.
+import requests
+import time
+import random
+import string
+
+def generate_partner_user_id():
+    characters = string.ascii_lowercase + '123456789'
+    return ''.join(random.choice(characters) for _ in range(64))
+
+def send_requests(num_requests, delay_ms):
+    url = 'https://api.discord.gx.games/v1/direct-fulfillment'
+    headers = {
+        'authority': 'api.discord.gx.games',
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'content-type': 'application/json',
+        'origin': 'https://www.opera.com',
+        'referer': 'https://www.opera.com/',
+        'sec-ch-ua': '"Opera GX";v="105", "Chromium";v="119", "Not?A_Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'cross-site',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+    }
+
+    request_count = 0
+    with open('api_responses.txt', 'a') as output_file:
+        while True:
+            if num_requests != float('inf') and request_count >= num_requests:
+                break
+
+            partner_user_id = generate_partner_user_id()
+            data = {'partnerUserId': partner_user_id}
+
+            try:
+                response = requests.post(url, headers=headers, json=data, timeout=10)
+
+                if response.status_code == 200:
+                    response_json = response.json()
+                    secret_token = response_json.get('token')
+                    
+                    if secret_token:
+                        url_with_token = f'https://discord.com/billing/partner-promotions/1180231712274387115/{secret_token}'
+                        output_file.write(url_with_token + '\n')
+                        print(f'Secret token URL saved: {url_with_token}')
+                    else:
+                        print('No "token" found in the response.')
+                
+                elif response.status_code == 429:
+                    print('Rate limit reached. Waiting before retrying...')
+                    retry_after = int(response.headers.get('Retry-After', 60))  # Retry after 60 seconds
+                    time.sleep(retry_after)
+                    continue  # Retry the current request
+                
+                else:
+                    print(f'Request failed with status code {response.status_code}')
+                    print(response.text)
+
+            except Exception as e:
+                print(f'Error: {str(e)}')
+
+            request_count += 1
+            time.sleep(delay_ms / 1000.0)
+
+if __name__ == "__main__":
+    num_requests_input = input("Enter the number of requests to send (or type 'unlimited' for unlimited requests): ")
+
+    if num_requests_input.lower() == 'unlimited':
+        num_requests = float('inf')
+    else:
+        try:
+            num_requests = int(num_requests_input)
+        except ValueError:
+            print("Invalid input. Please enter a number or 'unlimited'.")
+            exit(1)
+
+    try:
+        delay_ms = int(input("Enter the delay between requests in milliseconds: "))
+    except ValueError:
+        print("Invalid input. Please enter a number.")
+        exit(1)
+
+    send_requests(num_requests, delay_ms)
